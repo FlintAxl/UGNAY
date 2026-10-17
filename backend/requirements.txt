@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+python-multipart
+motor
+pydantic[email]
+pydantic-settings
+argon2-cffi
+PyJWT
+cloudinary
+httpx
+certifi
