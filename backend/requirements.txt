@@ -9,3 +9,5 @@ PyJWT
 cloudinary
 httpx
 certifi
+tzdata
+pytest
