@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../storage.dart';
 import 'admin_dashboard_screen.dart';
+import 'logistics_dashboard_screen.dart';
 import 'login_screen.dart';
 
 /// Chooses the landing screen for a role. Other roles get a placeholder
 /// until their modules are built.
 Widget screenForRole(String role, String fullName) {
   if (role == 'admin') return AdminDashboardScreen(fullName: fullName);
+  if (role == 'logistics') return LogisticsDashboardScreen(fullName: fullName);
   return HomeScreen(role: role, fullName: fullName);
 }
 
