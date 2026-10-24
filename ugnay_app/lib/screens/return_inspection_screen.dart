@@ -120,7 +120,7 @@ class _ReturnInspectionScreenState extends State<ReturnInspectionScreen> {
           ),
         );
         if (proceed == true) {
-          _submit(overrideWeekend: true);
+          await _submit(overrideWeekend: true);
           return;
         }
       } else {

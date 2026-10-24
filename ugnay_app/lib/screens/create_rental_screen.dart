@@ -423,6 +423,7 @@ class _CreateRentalScreenState extends State<CreateRentalScreen> {
     final maxAvail = double.tryParse(line.item.availableQuantity) ?? 0.0;
 
     return Padding(
+      key: ValueKey(line.item.id),
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,

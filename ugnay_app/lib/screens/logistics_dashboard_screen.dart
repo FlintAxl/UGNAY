@@ -192,10 +192,14 @@ class _RentalsTabState extends State<_RentalsTab> {
     });
   }
 
-  String _formatDate(String iso) {
-    if (iso.length >= 10) return iso.substring(0, 10);
-    return iso;
+String _formatDate(String iso) {
+  try {
+    final dt = DateTime.parse(iso).toLocal();
+    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+  } catch (_) {
+    return iso.length >= 10 ? iso.substring(0, 10) : iso;
   }
+}
 
   Color _statusColor(String status) {
     switch (status) {

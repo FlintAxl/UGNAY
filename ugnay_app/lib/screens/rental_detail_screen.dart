@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api_client.dart';
 import 'return_inspection_screen.dart';
-import 'signature_dialog.dart';
+import 'signature_screen.dart';
 
 class RentalDetailScreen extends StatefulWidget {
   final String id;
@@ -157,7 +157,8 @@ class _RentalDetailScreenState extends State<RentalDetailScreen> {
     }
   }
 
-  Future<void> _releaseRental(RentalDetail r, {bool overrideWeekend = false}) async {
+Future<void> _releaseRental(RentalDetail r, {bool overrideWeekend = false}) async {
+  if (!overrideWeekend) {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -172,45 +173,42 @@ class _RentalDetailScreenState extends State<RentalDetailScreen> {
         ],
       ),
     );
-
     if (ok != true) return;
-
-    setState(() => _busy = true);
-    try {
-      await releaseRental(r.id, overrideWeekend: overrideWeekend);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Rental ${r.rentalNo} released successfully!')),
-      );
-      _reload();
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      if (e.code == 'WEEKEND_NOT_ALLOWED' && !overrideWeekend) {
-        final proceed = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Weekend Release Warning'),
-            content: Text(e.message),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Continue Anyway'),
-              ),
-            ],
-          ),
-        );
-        if (proceed == true) {
-          _releaseRental(r, overrideWeekend: true);
-          return;
-        }
-      } else {
-        await _message('Could not release', e.message);
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
   }
+
+  setState(() => _busy = true);
+  try {
+    await releaseRental(r.id, overrideWeekend: overrideWeekend);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Rental ${r.rentalNo} released successfully!')),
+    );
+    _reload();
+  } on ApiException catch (e) {
+    if (!mounted) return;
+    if (e.code == 'WEEKEND_NOT_ALLOWED' && !overrideWeekend) {
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Weekend Release Warning'),
+          content: Text(e.message),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Continue Anyway')),
+          ],
+        ),
+      );
+      if (proceed == true) {
+        await _releaseRental(r, overrideWeekend: true);
+        return;
+      }
+    } else {
+      await _message('Could not release', e.message);
+    }
+  } finally {
+    if (mounted) setState(() => _busy = false);
+  }
+}
 
   Future<void> _cancelRental(RentalDetail r) async {
     final ok = await showDialog<bool>(
@@ -663,14 +661,13 @@ class _RentalDetailScreenState extends State<RentalDetailScreen> {
                         onPressed: _busy
                             ? null
                             : () async {
-                                final ok = await showDialog<bool>(
-                                  context: context,
-                                  builder: (_) => SignatureDialog(
-                                    rentalId: r.id,
-                                    rentalNo: r.rentalNo,
-                                    borrowerName: r.borrowerName,
-                                  ),
-                                );
+                                final ok = await Navigator.push<bool>(
+                                context,
+                                MaterialPageRoute(
+                                  fullscreenDialog: true,
+                                  builder: (_) => SignatureScreen(rental: r),
+                                ),
+                              );
                                 if (ok == true) _reload();
                               },
                         icon: const Icon(Icons.draw_outlined),
