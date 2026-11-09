@@ -1,3 +1,5 @@
+import base64
+import binascii
 from datetime import date, datetime
 from typing import Literal, Optional
 
@@ -7,7 +9,8 @@ from pymongo import ReturnDocument
 
 from ..auth import get_pmes_user
 from ..database import counters, pmes_applications
-from ..helpers import api_error, log_audit, now
+from ..helpers import (api_error, log_audit, now, signed_url, upload_image,
+                       validate_image_bytes)
 from ..models import (PMES_APPROVED, PMES_REJECTED, PMES_SUBMITTED)
 from ..pmes_schedule import (PMES_VENUE, next_saturdays, schedule_problem,
                              today_ph)
@@ -18,6 +21,8 @@ router = APIRouter(prefix="/pmes", tags=["pmes"])
 MembershipCategory = Literal["ARB", "ARB_HH", "NON_ARB"]
 CivilStatus = Literal["SINGLE", "MARRIED", "WIDOW", "SEPARATED"]
 Sex = Literal["MALE", "FEMALE"]
+
+MAX_SIGNATURE_BYTES = 2 * 1024 * 1024
 
 
 # =====================================================================
@@ -88,6 +93,7 @@ class PmesApplicationIn(BaseModel):
     # PMES schedule
     schedule_date: date
     signature_name: str = Field(min_length=2, max_length=120)
+    signature_image: Optional[str] = Field(default=None, max_length=3_000_000)
 
 
 # =====================================================================
@@ -103,11 +109,28 @@ async def next_pmes_no() -> str:
 
 
 def application_out(app: dict) -> dict:
-    out = {k: v for k, v in app.items() if k not in ("_id", "user_id")}
+    out = {k: v for k, v in app.items()
+           if k not in ("_id", "user_id", "signature_public_id", "signature_image")}
     out["id"] = str(app["_id"])
     out["status"] = app.get("status", PMES_SUBMITTED)
     out["reviewed_by"] = str(app["reviewed_by"]) if app.get("reviewed_by") else None
+    out["signature_url"] = signed_url(app.get("signature_public_id"))
     return out
+
+
+def decode_signature(value: Optional[str]) -> Optional[bytes]:
+    if not value:
+        return None
+    try:
+        data = base64.b64decode(value, validate=True)
+    except (binascii.Error, ValueError):
+        raise api_error(422, "INVALID_SIGNATURE", "The signature image is not valid base64.")
+    if len(data) > MAX_SIGNATURE_BYTES:
+        raise api_error(413, "SIGNATURE_TOO_LARGE", "Signature image must be 2 MB or smaller.")
+    try:
+        return validate_image_bytes(data)
+    except Exception:
+        raise api_error(422, "INVALID_SIGNATURE", "The signature image must be a JPEG or PNG.")
 
 
 def clean(text: Optional[str]) -> Optional[str]:
@@ -158,7 +181,7 @@ async def save_application(body: PmesApplicationIn, user: dict = Depends(get_pme
     if problem:
         raise api_error(422, "INVALID_SCHEDULE", problem)
 
-    data = tidy(body.model_dump(mode="json"))
+    data = tidy(body.model_dump(mode="json", exclude={"signature_image"}))
     data["venue"] = PMES_VENUE
     t = now()
     existing = await pmes_applications.find_one({"user_id": user["_id"]})
@@ -171,7 +194,16 @@ async def save_application(body: PmesApplicationIn, user: dict = Depends(get_pme
         if existing["schedule_date"] < today_ph().isoformat():
             raise api_error(409, "SCHEDULE_PASSED",
                             "Your PMES schedule has passed, so the application can no longer be changed.")
+        signature_data = decode_signature(body.signature_image)
+        signature_public_id = existing.get("signature_public_id")
+        if signature_data is not None:
+            signature_public_id = await upload_image(signature_data, "signatures")
+        elif not signature_public_id:
+            raise api_error(422, "SIGNATURE_REQUIRED", "Please draw your signature.")
         changes = {**data, "updated_at": t}
+        if signature_data is not None:
+            changes["signature_public_id"] = signature_public_id
+            changes["signed_at"] = t
         if current == PMES_REJECTED:
             changes.update({
                 "status": PMES_SUBMITTED,
@@ -191,11 +223,16 @@ async def save_application(body: PmesApplicationIn, user: dict = Depends(get_pme
             raise api_error(409, "APPLICATION_LOCKED",
                             "The application status changed. Please reload and try again.")
     else:
+        signature_data = decode_signature(body.signature_image)
+        if signature_data is None:
+            raise api_error(422, "SIGNATURE_REQUIRED", "Please draw your signature.")
+        signature_public_id = await upload_image(signature_data, "signatures")
         doc = {
             "user_id": user["_id"],
             "email": user["email"],
             "reference_no": await next_pmes_no(),
             **data,
+            "signature_public_id": signature_public_id,
             "status": PMES_SUBMITTED,
             "reviewed_by": None,
             "reviewed_at": None,

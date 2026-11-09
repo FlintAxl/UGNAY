@@ -316,6 +316,36 @@ class _AdminPmesDetailScreenState extends State<AdminPmesDetailScreen> {
                 ]),
                 _card('Pirma', [
                   _kv('Pangalan at Pirma', a.signatureName),
+                  const SizedBox(height: 8),
+                  if (a.signatureUrl.isNotEmpty)
+                    Container(
+                      width: double.infinity,
+                      height: 96,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade400),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          a.signatureUrl,
+                          height: 96,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) => Center(
+                            child: Text(
+                              'Signature could not be loaded.',
+                              style: TextStyle(color: Colors.grey.shade600),
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    Text(
+                      'No signature on file.',
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
                 ]),
               ],
             );

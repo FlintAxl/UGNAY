@@ -1,9 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 
 import '../api_client.dart';
 import '../pmes_api.dart';
 import '../pmes_pdf.dart';
+import 'pmes_signature_screen.dart';
 
 const _venue = 'PRIC Cooperative, Barangay Pinagdanlayan, Dolores, Quezon';
 
@@ -76,6 +79,9 @@ class _PmesApplicationScreenState extends State<PmesApplicationScreen> {
 
   List<PmesScheduleOption> _options = [];
   PmesApplication? _saved;
+  Uint8List? _signatureBytes;
+  String _signatureUrl = '';
+  bool _signatureDirty = false;
   bool _loading = true;
   bool _busy = false;
   bool _schedulePassed = false;
@@ -83,6 +89,7 @@ class _PmesApplicationScreenState extends State<PmesApplicationScreen> {
   String get _status => _saved?.status ?? 'SUBMITTED';
   bool get _approved => _status == 'APPROVED';
   bool get _rejected => _status == 'REJECTED';
+  bool get _hasSignature => _signatureBytes != null || _signatureUrl.isNotEmpty;
 
   @override
   void initState() {
@@ -186,6 +193,9 @@ class _PmesApplicationScreenState extends State<PmesApplicationScreen> {
     _otherId.text = app.ids.other;
 
     _signatureName.text = app.signatureName;
+    _signatureBytes = null;
+    _signatureUrl = app.signatureUrl;
+    _signatureDirty = false;
     _category = app.membershipCategory.isEmpty ? null : app.membershipCategory;
     _civilStatus = app.civilStatus.isEmpty ? null : app.civilStatus;
     _sex = app.sex.isEmpty ? null : app.sex;
@@ -241,6 +251,64 @@ class _PmesApplicationScreenState extends State<PmesApplicationScreen> {
         _beneficiaryBirthDate[index].text = _iso(picked);
       });
     }
+  }
+
+  Future<void> _openSignature() async {
+    if (_approved) return;
+    final bytes = await Navigator.of(context).push<Uint8List>(
+      MaterialPageRoute(builder: (_) => const PmesSignatureScreen()),
+    );
+    if (bytes == null || !mounted) return;
+    setState(() {
+      _signatureBytes = bytes;
+      _signatureDirty = true;
+    });
+  }
+
+  Widget _signaturePreview() {
+    return Container(
+      height: 96,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade400),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: _signatureBytes != null
+            ? Image.memory(
+                _signatureBytes!,
+                height: 96,
+                fit: BoxFit.contain,
+              )
+            : _signatureUrl.isNotEmpty
+                ? Image.network(
+                    _signatureUrl,
+                    height: 96,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) => Center(
+                      child: Text(
+                        'Signature could not be loaded.',
+                        style: TextStyle(color: Colors.grey.shade600),
+                      ),
+                    ),
+                  )
+                : Center(
+                    child: Text(
+                      'No signature yet',
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
+                  ),
+      ),
+    );
+  }
+
+  Future<Uint8List?> _signatureForPdf() async {
+    if (_signatureBytes != null) return _signatureBytes;
+    final url = _saved?.signatureUrl ?? _signatureUrl;
+    if (url.isEmpty) return null;
+    return fetchSignatureBytes(url);
   }
 
   PmesApplication _fromForm() => PmesApplication(
@@ -311,13 +379,23 @@ class _PmesApplicationScreenState extends State<PmesApplicationScreen> {
       _showError('Please choose a PMES schedule.');
       return;
     }
+    if (!_hasSignature) {
+      _showError('Please draw your signature.');
+      return;
+    }
     final resubmitting = _rejected;
     setState(() => _busy = true);
     try {
-      final saved = await savePmesApplication(widget.pmesToken, _fromForm());
+      final saved = await savePmesApplication(
+        widget.pmesToken,
+        _fromForm(),
+        signaturePng: _signatureDirty ? _signatureBytes : null,
+      );
       if (!mounted) return;
       setState(() {
         _saved = saved;
+        _signatureUrl = saved.signatureUrl;
+        _signatureDirty = false;
         _schedulePassed = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -342,7 +420,12 @@ class _PmesApplicationScreenState extends State<PmesApplicationScreen> {
     if (app == null) return;
     setState(() => _busy = true);
     try {
-      final bytes = await buildPmesPdf(app);
+      final signatureImage = await _signatureForPdf();
+      if (app.signatureUrl.isNotEmpty && signatureImage == null) {
+        _showError('Could not load the signature image. Check your connection and try again.');
+        return;
+      }
+      final bytes = await buildPmesPdf(app, signatureImage: signatureImage);
       await Printing.layoutPdf(
         onLayout: (format) async => bytes,
         name: 'PMES-${app.referenceNo ?? 'application'}.pdf',
@@ -359,7 +442,12 @@ class _PmesApplicationScreenState extends State<PmesApplicationScreen> {
     if (app == null) return;
     setState(() => _busy = true);
     try {
-      final bytes = await buildPmesPdf(app);
+      final signatureImage = await _signatureForPdf();
+      if (app.signatureUrl.isNotEmpty && signatureImage == null) {
+        _showError('Could not load the signature image. Check your connection and try again.');
+        return;
+      }
+      final bytes = await buildPmesPdf(app, signatureImage: signatureImage);
       await Printing.sharePdf(
         bytes: bytes,
         filename: 'PMES-${app.referenceNo ?? 'application'}.pdf',
@@ -760,8 +848,22 @@ class _PmesApplicationScreenState extends State<PmesApplicationScreen> {
                     ]),
                     _card('Pirma', [
                       _tf(_signatureName, 'Pangalan at Pirma', required: true),
+                      const SizedBox(height: 8),
+                      _signaturePreview(),
+                      if (!_approved) ...[
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _busy ? null : _openSignature,
+                            icon: const Icon(Icons.edit_outlined, size: 18),
+                            label: Text(_hasSignature ? 'Change signature' : 'Sign here'),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 8),
                       const Text(
-                        'By typing your name, you confirm that the information above is true and correct.',
+                        'By typing your name and signing, you confirm that the information above is true and correct.',
                       ),
                     ]),
                     _actions(),

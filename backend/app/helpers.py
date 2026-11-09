@@ -39,8 +39,7 @@ def to_object_id(value: str) -> ObjectId:
         raise api_error(404, "NOT_FOUND", "User not found.")
 
 
-async def read_image(file: UploadFile) -> bytes:
-    data = await file.read()
+def validate_image_bytes(data: bytes) -> bytes:
     if not data:
         raise api_error(400, "INVALID_IMAGE", "Empty image file.")
     if len(data) > MAX_IMAGE_BYTES:
@@ -50,6 +49,10 @@ async def read_image(file: UploadFile) -> bytes:
     if not (is_jpeg or is_png):
         raise api_error(400, "INVALID_IMAGE", "Only JPEG or PNG images are allowed.")
     return data
+
+
+async def read_image(file: UploadFile) -> bytes:
+    return validate_image_bytes(await file.read())
 
 
 # ---------- Face service ----------

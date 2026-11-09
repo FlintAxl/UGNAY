@@ -1,10 +1,10 @@
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
 import '../api_client.dart';
 import '../logistics_api.dart';
+import '../signature_pad.dart';
 
 /// Full-screen contract review + e-signature.
 /// The borrower sees exactly what they agree to (items, total, down payment, due date,
@@ -73,19 +73,7 @@ class _SignatureScreenState extends State<SignatureScreen> {
   }
 
   /// Renders the strokes at 3x the pad's size on a white background.
-  Future<Uint8List> _exportPng() async {
-    const scale = 3.0;
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder)..scale(scale);
-    canvas.drawRect(Offset.zero & _padSize, Paint()..color = Colors.white);
-    _drawStrokes(canvas, _strokes);
-    final image = await recorder.endRecording().toImage(
-          (_padSize.width * scale).round(),
-          (_padSize.height * scale).round(),
-        );
-    final data = await image.toByteData(format: ui.ImageByteFormat.png);
-    return data!.buffer.asUint8List();
-  }
+  Future<Uint8List> _exportPng() => exportSignaturePng(_padSize, _strokes);
 
   Future<void> _submit() async {
     if (_terms == null) {
@@ -286,7 +274,7 @@ class _SignatureScreenState extends State<SignatureScreen> {
                               child: Stack(
                                 fit: StackFit.expand,
                                 children: [
-                                  CustomPaint(painter: _SignaturePainter(_strokes)),
+                                  CustomPaint(painter: SignaturePainter(_strokes)),
                                   if (_strokes.isEmpty)
                                     Center(
                                       child: IgnorePointer(
@@ -335,31 +323,4 @@ class _SignatureScreenState extends State<SignatureScreen> {
       ),
     );
   }
-}
-
-/// Shared by the on-screen pad and the PNG export so they always look the same.
-void _drawStrokes(Canvas canvas, List<List<Offset>> strokes, {double width = 2.5}) {
-  final line = Paint()
-    ..color = Colors.black
-    ..strokeCap = StrokeCap.round
-    ..strokeWidth = width;
-  final dot = Paint()..color = Colors.black;
-  for (final s in strokes) {
-    if (s.length == 1) canvas.drawCircle(s.first, width / 2, dot);
-    for (int i = 0; i < s.length - 1; i++) {
-      canvas.drawLine(s[i], s[i + 1], line);
-    }
-  }
-}
-
-class _SignaturePainter extends CustomPainter {
-  final List<List<Offset>> strokes;
-
-  _SignaturePainter(this.strokes);
-
-  @override
-  void paint(Canvas canvas, Size size) => _drawStrokes(canvas, strokes);
-
-  @override
-  bool shouldRepaint(covariant _SignaturePainter oldDelegate) => true;
 }

@@ -51,7 +51,11 @@ Run from the service directory (CWD matters: backend loads `.env` from CWD):
   Application status is `SUBMITTED|APPROVED|REJECTED`; approved applications are read-only and
   rejected ones can be edited/resubmitted (which resets the status to `SUBMITTED`). Admins review
   them through `/admin/pmes` (list/detail/approve/reject). PMES approval is separate from account
-  approval and does not activate the user or set `membership_type`.
+  approval and does not activate the user or set `membership_type`. The drawn PMES signature is
+  sent as base64 `signature_image` in `PUT /pmes/application`; the backend validates it, uploads it
+  to Cloudinary (`signatures`), stores only `signature_public_id`, and returns `signature_url`.
+  A signature is required for new submissions and for updates that have none; legacy applications
+  without one may still be approved, but their next edit must include a signature.
 
 ## Face service (`face-service`)
 
@@ -74,6 +78,8 @@ Run from the service directory (CWD matters: backend loads `.env` from CWD):
 - Admin dashboard has a PMES tab backed by `admin_pmes_screen.dart` /
   `admin_pmes_detail_screen.dart`. Account approval assigns both `role` and `membership_type`;
   active members can be upgraded/downgraded from the applicant detail screen.
-- PMES PDFs are generated on-device with `pdf` + `printing` in `lib/pmes_pdf.dart`. Entry point is
-  the "Apply for PMES" link on the login screen (or right after registration); pending users do
-  not need face login or admin approval to apply.
+- PMES PDFs are generated on-device with `pdf` + `printing` in `lib/pmes_pdf.dart`, including the
+  drawn signature bytes fetched from `signature_url` when present. Entry point is the
+  "Apply for PMES" link on the login screen (or right after registration); pending users do
+  not need face login or admin approval to apply. Signature pad drawing/export is shared in
+  `lib/signature_pad.dart`; PMES capture uses `lib/screens/pmes_signature_screen.dart`.

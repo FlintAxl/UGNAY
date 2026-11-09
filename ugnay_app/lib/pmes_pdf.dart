@@ -51,6 +51,41 @@ pw.Widget _field(String label, String value, {int flex = 1}) => pw.Expanded(
       ),
     );
 
+pw.Widget _signatureField(String name, Uint8List? signatureImage, {int flex = 2}) =>
+    pw.Expanded(
+      flex: flex,
+      child: pw.Padding(
+        padding: const pw.EdgeInsets.only(right: 10, bottom: 7),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text('Pangalan at Pirma', style: _labelStyle),
+            if (signatureImage != null)
+              pw.Container(
+                height: 50,
+                alignment: pw.Alignment.centerLeft,
+                child: pw.Image(
+                  pw.MemoryImage(signatureImage),
+                  fit: pw.BoxFit.contain,
+                ),
+              )
+            else
+              pw.SizedBox(height: 50),
+            pw.Container(
+              width: double.infinity,
+              padding: const pw.EdgeInsets.only(bottom: 2),
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(
+                  bottom: pw.BorderSide(width: 0.6, color: PdfColors.grey600),
+                ),
+              ),
+              child: pw.Text(_value(name), style: _body),
+            ),
+          ],
+        ),
+      ),
+    );
+
 pw.Widget _check(String label, bool checked) => pw.Row(
       mainAxisSize: pw.MainAxisSize.min,
       children: [
@@ -181,7 +216,8 @@ pw.Widget _education(PmesApplication a) {
   );
 }
 
-Future<Uint8List> buildPmesPdf(PmesApplication a) async {
+Future<Uint8List> buildPmesPdf(PmesApplication a,
+    {Uint8List? signatureImage}) async {
   final doc = pw.Document();
 
   doc.addPage(
@@ -303,7 +339,7 @@ Future<Uint8List> buildPmesPdf(PmesApplication a) async {
         _section('PIRMA', [
           pw.SizedBox(height: 12),
           pw.Row(children: [
-            _field('Pangalan at Pirma', a.signatureName, flex: 2),
+            _signatureField(a.signatureName, signatureImage),
             _field('Petsa', _fmtDate(a.createdAt ?? '')),
           ]),
           pw.SizedBox(height: 8),

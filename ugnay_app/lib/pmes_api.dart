@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 
 import 'api_client.dart';
@@ -168,6 +171,7 @@ class PmesApplication {
   final String scheduleDate;
   final String venue;
   final String signatureName;
+  final String signatureUrl;
 
   const PmesApplication({
     this.id,
@@ -204,6 +208,7 @@ class PmesApplication {
     this.scheduleDate = '',
     this.venue = '',
     this.signatureName = '',
+    this.signatureUrl = '',
   });
 
   factory PmesApplication.fromJson(Map<String, dynamic> j) => PmesApplication(
@@ -244,6 +249,7 @@ class PmesApplication {
         scheduleDate: _str(j['schedule_date']),
         venue: _str(j['venue']),
         signatureName: _str(j['signature_name']),
+        signatureUrl: _str(j['signature_url']),
       );
 
   Map<String, dynamic> toJson() => {
@@ -355,13 +361,32 @@ Future<PmesApplication?> getPmesApplication(String token) async {
 }
 
 Future<PmesApplication> savePmesApplication(
-    String token, PmesApplication application) async {
+    String token, PmesApplication application,
+    {Uint8List? signaturePng}) async {
   try {
+    final data = application.toJson();
+    if (signaturePng != null) {
+      data['signature_image'] = base64Encode(signaturePng);
+    }
     final res = await _pmesDio.put('/pmes/application',
-        data: application.toJson(), options: _auth(token));
+        data: data, options: _auth(token));
     final d = Map<String, dynamic>.from(res.data as Map);
     return PmesApplication.fromJson(
         Map<String, dynamic>.from(d['application'] as Map));
+  } catch (e) {
+    throw parseError(e);
+  }
+}
+
+Future<Uint8List?> fetchSignatureBytes(String url) async {
+  if (url.isEmpty) return null;
+  try {
+    final res = await _pmesDio.get<List<int>>(
+      url,
+      options: Options(responseType: ResponseType.bytes),
+    );
+    final bytes = res.data;
+    return bytes == null ? null : Uint8List.fromList(bytes);
   } catch (e) {
     throw parseError(e);
   }
