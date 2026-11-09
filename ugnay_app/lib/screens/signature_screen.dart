@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../api_client.dart';
+import '../logistics_api.dart';
 
 /// Full-screen contract review + e-signature.
 /// The borrower sees exactly what they agree to (items, total, down payment, due date,

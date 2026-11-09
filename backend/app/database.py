@@ -9,9 +9,15 @@ db = client[settings.DATABASE_NAME]
 
 users = db["users"]
 audit_logs = db["audit_logs"]
+counters = db["counters"]
+
+# Logistics
 rental_items = db["rental_items"]
 rentals = db["rentals"]
-counters = db["counters"]
+
+# Production (ginger bidding)
+suppliers = db["suppliers"]
+bidding_rounds = db["bidding_rounds"]
 
 
 async def init_indexes():
@@ -23,3 +29,7 @@ async def init_indexes():
     await rentals.create_index("rental_no", unique=True)
     await rentals.create_index([("status", 1), ("due_at", 1)])
     await rentals.create_index([("created_at", -1)])
+
+    await suppliers.create_index("name_key", unique=True)
+    await bidding_rounds.create_index("round_no", unique=True)
+    await bidding_rounds.create_index([("status", 1), ("created_at", -1)])

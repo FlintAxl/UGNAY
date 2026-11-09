@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api_client.dart';
+import '../logistics_api.dart';
 import 'rental_detail_screen.dart';
 
 class CreateRentalScreen extends StatefulWidget {

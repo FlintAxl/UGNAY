@@ -7,6 +7,7 @@ from .database import init_indexes
 from .routers import admin as admin_router
 from .routers import auth as auth_router
 from .routers import logistics as logistics_router
+from .routers import production as production_router
 
 
 @asynccontextmanager
@@ -24,8 +25,9 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
 app.include_router(auth_router.router, prefix="/api/v1")
 app.include_router(admin_router.router, prefix="/api/v1")
 app.include_router(logistics_router.router, prefix="/api/v1")
+app.include_router(production_router.router, prefix="/api/v1")
 
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok"} 

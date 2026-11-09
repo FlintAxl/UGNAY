@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api_client.dart';
+import '../logistics_api.dart';
 
 class ReturnInspectionScreen extends StatefulWidget {
   final RentalDetail rental;
