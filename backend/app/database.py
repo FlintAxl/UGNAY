@@ -19,6 +19,9 @@ rentals = db["rentals"]
 suppliers = db["suppliers"]
 bidding_rounds = db["bidding_rounds"]
 
+# PMES (aspiring members)
+pmes_applications = db["pmes_applications"]
+
 
 async def init_indexes():
     await users.create_index("email", unique=True)
@@ -33,3 +36,8 @@ async def init_indexes():
     await suppliers.create_index("name_key", unique=True)
     await bidding_rounds.create_index("round_no", unique=True)
     await bidding_rounds.create_index([("status", 1), ("created_at", -1)])
+
+    await pmes_applications.create_index("user_id", unique=True)
+    await pmes_applications.create_index("reference_no", unique=True)
+    await pmes_applications.create_index([("schedule_date", 1)])
+    await pmes_applications.create_index([("status", 1), ("created_at", -1)])

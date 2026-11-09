@@ -16,6 +16,10 @@ from ..models import LoginRequest, RefreshRequest, Status
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def _pmes_token(user_id) -> str:
+    return create_token(user_id, "pmes", timedelta(days=settings.PMES_TOKEN_EXPIRE_DAYS))
+
+
 @router.post("/register", status_code=201)
 async def register(
     full_name: str = Form(..., min_length=2),
@@ -63,7 +67,8 @@ async def register(
 
     await log_audit(result.inserted_id, "USER_REGISTERED", result.inserted_id)
     return {"message": "Registration submitted. Please wait for admin approval.",
-            "status": Status.PENDING}
+            "status": Status.PENDING, "email": email,
+            "full_name": full_name.strip(), "pmes_token": _pmes_token(result.inserted_id)}
 
 
 @router.post("/login")
@@ -86,6 +91,23 @@ async def login(body: LoginRequest):
         timedelta(minutes=settings.FACE_CHALLENGE_EXPIRE_MINUTES))
     return {"face_token": face_token,
             "message": "Password verified. Face verification required."}
+
+
+@router.post("/pmes-login")
+async def pmes_login(body: LoginRequest):
+    """Limited login for PMES applicants who have not been approved yet (no face check).
+
+    The returned token only works on the /pmes endpoints."""
+    user = await users.find_one({"email": body.email.lower()})
+    if not user or not verify_password(body.password, user["password_hash"]):
+        raise api_error(401, "INVALID_CREDENTIALS", "Incorrect email or password.")
+    if user["status"] == Status.REJECTED:
+        raise api_error(403, "ACCOUNT_REJECTED", "Your registration was rejected.",
+                        reason=user.get("rejection_reason"))
+    if user["status"] == Status.SUSPENDED:
+        raise api_error(403, "ACCOUNT_SUSPENDED", "Your account has been suspended.")
+    return {"pmes_token": _pmes_token(user["_id"]), "email": user["email"],
+            "full_name": user["full_name"], "status": user["status"]}
 
 
 @router.post("/verify-face")
@@ -121,4 +143,5 @@ async def refresh(body: RefreshRequest):
 @router.get("/me")
 async def me(user: dict = Depends(get_current_user)):
     return {"id": str(user["_id"]), "email": user["email"], "full_name": user["full_name"],
-            "role": user["role"], "status": user["status"]}
+            "role": user["role"], "membership_type": user.get("membership_type"),
+            "status": user["status"]}

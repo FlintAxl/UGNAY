@@ -160,7 +160,19 @@ ApiException parseError(Object e) {
 
 // ---------------------------------------------------------------- Register
 
-Future<String> registerUser({
+class RegistrationResult {
+  final String message;
+  final String pmesToken;
+  final String email;
+
+  const RegistrationResult({
+    required this.message,
+    required this.pmesToken,
+    required this.email,
+  });
+}
+
+Future<RegistrationResult> registerUser({
   required String fullName,
   required String email,
   required String phone,
@@ -180,7 +192,12 @@ Future<String> registerUser({
   });
   try {
     final res = await dio.post('/auth/register', data: form);
-    return (res.data['message'] ?? 'Registration submitted.').toString();
+    final d = res.data as Map;
+    return RegistrationResult(
+      message: (d['message'] ?? 'Registration submitted.').toString(),
+      pmesToken: (d['pmes_token'] ?? '').toString(),
+      email: (d['email'] ?? email).toString(),
+    );
   } catch (e) {
     throw parseError(e);
   }
@@ -217,6 +234,7 @@ Future<AuthSession> verifyFace({
       refreshToken: d['refresh_token'] as String,
       role: d['role'] as String,
       fullName: d['full_name'] as String,
+      membershipType: d['membership_type'] as String?,
     );
   } catch (e) {
     throw parseError(e);
@@ -232,6 +250,7 @@ class Applicant {
   final String phone;
   final String status;
   final String role;
+  final String? membershipType;
   final String createdAt;
   final String? address;
   final String? idPhotoUrl;
@@ -246,6 +265,7 @@ class Applicant {
     required this.status,
     required this.role,
     required this.createdAt,
+    this.membershipType,
     this.address,
     this.idPhotoUrl,
     this.facePhotoUrl,
@@ -259,6 +279,7 @@ class Applicant {
         phone: (j['phone'] ?? '').toString(),
         status: j['status'] as String,
         role: j['role'] as String,
+        membershipType: j['membership_type'] as String?,
         createdAt: (j['created_at'] ?? '').toString(),
         address: j['address'] as String?,
         idPhotoUrl: j['id_photo_url'] as String?,
@@ -287,9 +308,20 @@ Future<Applicant> getApplicant(String id) async {
   }
 }
 
-Future<void> approveApplicant(String id, String role) async {
+Future<void> approveApplicant(String id, String role,
+    {String membershipType = 'ASSOCIATE'}) async {
   try {
-    await dio.post('/admin/applicants/$id/approve', data: {'role': role});
+    await dio.post('/admin/applicants/$id/approve',
+        data: {'role': role, 'membership_type': membershipType});
+  } catch (e) {
+    throw parseError(e);
+  }
+}
+
+Future<void> updateMembershipType(String id, String membershipType) async {
+  try {
+    await dio.patch('/admin/users/$id/membership-type',
+        data: {'membership_type': membershipType});
   } catch (e) {
     throw parseError(e);
   }

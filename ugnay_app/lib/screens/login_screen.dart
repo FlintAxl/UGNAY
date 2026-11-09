@@ -6,6 +6,7 @@ import '../api_client.dart';
 import '../storage.dart';
 import 'face_capture_screen.dart';
 import 'home_screen.dart';
+import 'pmes_login_screen.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -99,6 +100,7 @@ class _LoginScreenState extends State<LoginScreen> {
   /// face_token is still valid (5 minutes).
   Future<void> _verifyFaceLoop(String faceToken) async {
     while (true) {
+      if (!mounted) return;
       final bytes = await Navigator.push<Uint8List>(
         context,
         MaterialPageRoute(
@@ -115,7 +117,11 @@ class _LoginScreenState extends State<LoginScreen> {
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
-            builder: (_) => screenForRole(session.role, session.fullName),
+            builder: (_) => screenForRole(
+              session.role,
+              session.fullName,
+              membershipType: session.membershipType,
+            ),
           ),
           (route) => false,
         );
@@ -203,6 +209,19 @@ class _LoginScreenState extends State<LoginScreen> {
                                 MaterialPageRoute(builder: (_) => const RegisterScreen()),
                               ),
                       child: const Text('Create account'),
+                    ),
+                    TextButton(
+                      onPressed: _loading
+                          ? null
+                          : () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => PmesLoginScreen(
+                                    initialEmail: _email.text.trim().toLowerCase(),
+                                  ),
+                                ),
+                              ),
+                      child: const Text('Apply for PMES'),
                     ),
                   ],
                 ),

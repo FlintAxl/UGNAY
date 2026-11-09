@@ -56,6 +56,7 @@ def issue_tokens(user: dict) -> dict:
             user["_id"], "refresh", timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)),
         "token_type": "bearer",
         "role": user["role"],
+        "membership_type": user.get("membership_type"),
         "full_name": user["full_name"],
     }
 
@@ -67,6 +68,15 @@ async def get_current_user(creds: HTTPAuthorizationCredentials = Depends(_bearer
     user = await users.find_one({"_id": ObjectId(payload["sub"])})
     if not user or user["status"] != Status.ACTIVE:
         raise api_error(401, "INVALID_TOKEN", "Account is not active.")
+    return user
+
+
+async def get_pmes_user(creds: HTTPAuthorizationCredentials = Depends(_bearer)) -> dict:
+    """Applicants may use a limited PMES token before their account is approved."""
+    payload = decode_token(creds.credentials, "pmes")
+    user = await users.find_one({"_id": ObjectId(payload["sub"])})
+    if not user or user["status"] in (Status.REJECTED, Status.SUSPENDED):
+        raise api_error(403, "ACCOUNT_NOT_ACTIVE", "This account cannot apply for PMES.")
     return user
 
 

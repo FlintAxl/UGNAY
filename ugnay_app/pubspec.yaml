@@ -40,6 +40,8 @@ dependencies:
   flutter_secure_storage: ^11.2.0
   camera: ^0.12.1
   image_picker: ^1.2.4
+  pdf: ^3.11.3
+  printing: ^5.14.2
 
 dev_dependencies:
   flutter_test:

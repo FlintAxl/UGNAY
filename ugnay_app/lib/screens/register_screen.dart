@@ -5,6 +5,8 @@ import 'package:image_picker/image_picker.dart';
 
 import '../api_client.dart';
 import 'face_capture_screen.dart';
+import 'pmes_application_screen.dart';
+import 'pmes_login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -98,7 +100,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _submitting = true);
     try {
-      final message = await registerUser(
+      final result = await registerUser(
         fullName: _name.text.trim(),
         email: _email.text.trim().toLowerCase(),
         phone: _phone.text.trim(),
@@ -108,18 +110,44 @@ class _RegisterScreenState extends State<RegisterScreen> {
         facePhoto: _facePhoto!,
       );
       if (!mounted) return;
+      var applyNow = false;
       await showDialog(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
           title: const Text('Registration submitted'),
-          content: Text('$message\n\nYou can log in once an admin approves your account.'),
+          content: Text(
+            '${result.message}\n\nYou can apply for PMES now. You can log in once an admin approves your account.',
+          ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Later'),
+            ),
+            FilledButton(
+              onPressed: () {
+                applyNow = true;
+                Navigator.pop(ctx);
+              },
+              child: const Text('Apply for PMES'),
+            ),
           ],
         ),
       );
-      if (mounted) Navigator.pop(context); // back to login
+      if (!mounted) return;
+      if (applyNow) {
+        final email = result.email.isEmpty ? _email.text.trim().toLowerCase() : result.email;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => result.pmesToken.isEmpty
+                ? PmesLoginScreen(initialEmail: email)
+                : PmesApplicationScreen(pmesToken: result.pmesToken, email: email),
+          ),
+        );
+      } else {
+        Navigator.pop(context); // back to login
+      }
     } on ApiException catch (e) {
       if (mounted) _showMessage('Registration failed', e.message);
     } finally {

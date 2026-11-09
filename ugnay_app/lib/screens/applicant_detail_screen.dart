@@ -2,7 +2,22 @@ import 'package:flutter/material.dart';
 
 import '../api_client.dart';
 
-const _assignableRoles = ['logistics', 'production', 'marketing', 'microfinance', 'savings'];
+const _assignableRoles = [
+  'member',
+  'logistics',
+  'production',
+  'marketing',
+  'microfinance',
+  'savings',
+];
+
+const _membershipTypes = ['ASSOCIATE', 'FULLY_PLEDGED'];
+
+String _membershipLabel(String? value) => switch (value) {
+      'ASSOCIATE' => 'Associate member',
+      'FULLY_PLEDGED' => 'Fully pledged member',
+      _ => 'Not set',
+    };
 
 class ApplicantDetailScreen extends StatefulWidget {
   final String id;
@@ -16,6 +31,7 @@ class ApplicantDetailScreen extends StatefulWidget {
 class _ApplicantDetailScreenState extends State<ApplicantDetailScreen> {
   late Future<Applicant> _future;
   String? _role;
+  String _membershipType = 'ASSOCIATE';
   bool _busy = false;
 
   @override
@@ -51,7 +67,9 @@ class _ApplicantDetailScreenState extends State<ApplicantDetailScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Approve applicant'),
-        content: Text('Approve ${a.fullName} as $role?'),
+        content: Text(
+          'Approve ${a.fullName} as $role (${_membershipLabel(_membershipType).toLowerCase()})?',
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Approve')),
@@ -62,7 +80,7 @@ class _ApplicantDetailScreenState extends State<ApplicantDetailScreen> {
 
     setState(() => _busy = true);
     try {
-      await approveApplicant(a.id, role);
+      await approveApplicant(a.id, role, membershipType: _membershipType);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${a.fullName} approved as $role')),
@@ -70,6 +88,38 @@ class _ApplicantDetailScreenState extends State<ApplicantDetailScreen> {
       Navigator.pop(context, true);
     } on ApiException catch (e) {
       if (mounted) await _message('Could not approve', e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _updateMembership(Applicant a, String value) async {
+    if (value == a.membershipType) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Update membership type'),
+        content: Text(
+          'Change ${a.fullName} to ${_membershipLabel(value).toLowerCase()}?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Update')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    setState(() => _busy = true);
+    try {
+      await updateMembershipType(a.id, value);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Membership type updated to ${_membershipLabel(value)}')),
+      );
+      _retry();
+    } on ApiException catch (e) {
+      if (mounted) await _message('Could not update membership', e.message);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -203,6 +253,8 @@ class _ApplicantDetailScreenState extends State<ApplicantDetailScreen> {
                   children: [
                     Chip(label: Text(a.status)),
                     if (a.role != 'UNASSIGNED') Chip(label: Text(a.role)),
+                    if (a.membershipType != null)
+                      Chip(label: Text(_membershipLabel(a.membershipType))),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -223,6 +275,20 @@ class _ApplicantDetailScreenState extends State<ApplicantDetailScreen> {
                     ],
                     onSelected: (v) => setState(() => _role = v),
                   ),
+                  const SizedBox(height: 12),
+                  DropdownMenu<String>(
+                    label: const Text('Membership type'),
+                    initialSelection: _membershipType,
+                    expandedInsets: EdgeInsets.zero,
+                    enabled: !_busy,
+                    dropdownMenuEntries: [
+                      for (final m in _membershipTypes)
+                        DropdownMenuEntry(value: m, label: _membershipLabel(m)),
+                    ],
+                    onSelected: (v) {
+                      if (v != null) setState(() => _membershipType = v);
+                    },
+                  ),
                   const SizedBox(height: 16),
                   FilledButton.icon(
                     onPressed: _busy ? null : () => _approve(a),
@@ -237,6 +303,23 @@ class _ApplicantDetailScreenState extends State<ApplicantDetailScreen> {
                     ),
                     icon: const Icon(Icons.close),
                     label: const Text('Reject'),
+                  ),
+                ],
+                if (a.status == 'ACTIVE') ...[
+                  const SizedBox(height: 20),
+                  DropdownMenu<String>(
+                    key: ValueKey('membership-${a.membershipType ?? 'none'}'),
+                    label: const Text('Membership type'),
+                    initialSelection: a.membershipType ?? 'ASSOCIATE',
+                    expandedInsets: EdgeInsets.zero,
+                    enabled: !_busy,
+                    dropdownMenuEntries: [
+                      for (final m in _membershipTypes)
+                        DropdownMenuEntry(value: m, label: _membershipLabel(m)),
+                    ],
+                    onSelected: (v) {
+                      if (v != null) _updateMembership(a, v);
+                    },
                   ),
                 ],
               ],

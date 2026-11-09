@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api_client.dart';
+import 'admin_pmes_screen.dart';
 import 'applicant_detail_screen.dart';
 import 'home_screen.dart' show logout;
 
@@ -12,7 +13,7 @@ class AdminDashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: Column(
@@ -30,7 +31,12 @@ class AdminDashboardScreen extends StatelessWidget {
             ),
           ],
           bottom: const TabBar(
-            tabs: [Tab(text: 'Pending'), Tab(text: 'Active'), Tab(text: 'Rejected')],
+            tabs: [
+              Tab(text: 'Pending'),
+              Tab(text: 'Active'),
+              Tab(text: 'Rejected'),
+              Tab(text: 'PMES'),
+            ],
           ),
         ),
         body: const TabBarView(
@@ -38,6 +44,7 @@ class AdminDashboardScreen extends StatelessWidget {
             _ApplicantList(status: 'PENDING'),
             _ApplicantList(status: 'ACTIVE'),
             _ApplicantList(status: 'REJECTED'),
+            AdminPmesScreen(),
           ],
         ),
       ),
@@ -121,8 +128,13 @@ class _ApplicantListState extends State<_ApplicantList> {
                   separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (context, i) {
                     final a = items[i];
+                    final membership = a.membershipType == 'FULLY_PLEDGED'
+                        ? ' · Fully pledged'
+                        : a.membershipType == 'ASSOCIATE'
+                            ? ' · Associate'
+                            : '';
                     final subtitle = widget.status == 'ACTIVE'
-                        ? '${a.role} · ${a.email}'
+                        ? '${a.role}$membership · ${a.email}'
                         : '${a.email} · applied ${_date(a.createdAt)}';
                     return ListTile(
                       leading: CircleAvatar(
