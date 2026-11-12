@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api_client.dart';
 import '../production_api.dart';
+import '../widgets/app_footer.dart';
 import 'bidding_round_detail_screen.dart';
 import 'home_screen.dart' show logout;
 import 'production_widgets.dart';
@@ -70,6 +71,7 @@ class _ProductionDashboardScreenState extends State<ProductionDashboardScreen> {
             ],
           ),
         ),
+        bottomNavigationBar: const AppFooter(current: AppFooterTab.dashboard),
         body: Column(
           children: [
             FutureBuilder<ProductionSummary>(

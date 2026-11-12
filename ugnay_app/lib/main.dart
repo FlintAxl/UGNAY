@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 
 import 'api_client.dart';
-import 'screens/login_screen.dart';
+import 'screens/landing_screen.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
 
 void main() {
   // If the token can't be refreshed (expired session, suspended account),
-  // send the user back to the login screen.
+  // send the user back to the landing screen.
   onSessionExpired = () {
     navigatorKey.currentState?.pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      MaterialPageRoute(builder: (_) => const LandingScreen()),
       (route) => false,
     );
   };
@@ -27,7 +27,7 @@ class UgnayApp extends StatelessWidget {
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorSchemeSeed: Colors.green, useMaterial3: true),
-      home: const LoginScreen(),
+      home: const LandingScreen(),
     );
   }
 }

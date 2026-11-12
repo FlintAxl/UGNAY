@@ -34,6 +34,8 @@ class TokenStorage {
 
   static Future<String?> accessToken() => _storage.read(key: 'access_token');
   static Future<String?> refreshToken() => _storage.read(key: 'refresh_token');
+  static Future<String?> role() => _storage.read(key: 'role');
+  static Future<String?> fullName() => _storage.read(key: 'full_name');
   static Future<String?> membershipType() => _storage.read(key: 'membership_type');
 
   static Future<void> saveAccessToken(String token) =>

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api_client.dart';
+import '../widgets/app_footer.dart';
 import 'admin_pmes_screen.dart';
 import 'applicant_detail_screen.dart';
 import 'home_screen.dart' show logout;
@@ -39,6 +40,7 @@ class AdminDashboardScreen extends StatelessWidget {
             ],
           ),
         ),
+        bottomNavigationBar: const AppFooter(current: AppFooterTab.dashboard),
         body: const TabBarView(
           children: [
             _ApplicantList(status: 'PENDING'),

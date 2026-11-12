@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api_client.dart';
 import '../logistics_api.dart';
+import '../widgets/app_footer.dart';
 import 'create_rental_screen.dart';
 import 'home_screen.dart' show logout;
 import 'rental_detail_screen.dart';
@@ -63,6 +64,7 @@ class _LogisticsDashboardScreenState extends State<LogisticsDashboardScreen> {
             ],
           ),
         ),
+        bottomNavigationBar: const AppFooter(current: AppFooterTab.dashboard),
         body: Column(
           children: [
             // Top Summary Bar

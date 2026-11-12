@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../storage.dart';
+import '../widgets/app_footer.dart';
 import 'admin_dashboard_screen.dart';
+import 'landing_screen.dart';
 import 'logistics_dashboard_screen.dart';
-import 'login_screen.dart';
 import 'production_dashboard_screen.dart';
 
 /// Chooses the landing screen for a role. Other roles get a placeholder
@@ -26,7 +27,7 @@ Future<void> logout(BuildContext context) async {
   if (!context.mounted) return;
   Navigator.pushAndRemoveUntil(
     context,
-    MaterialPageRoute(builder: (_) => const LoginScreen()),
+    MaterialPageRoute(builder: (_) => const LandingScreen()),
     (route) => false,
   );
 }
@@ -57,6 +58,7 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
       ),
+      bottomNavigationBar: const AppFooter(current: AppFooterTab.dashboard),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
