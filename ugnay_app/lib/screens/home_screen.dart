@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../storage.dart';
 import '../widgets/app_footer.dart';
+import '../widgets/member_seminar_notice.dart';
 import 'admin_dashboard_screen.dart';
 import 'landing_screen.dart';
 import 'logistics_dashboard_screen.dart';
@@ -12,15 +13,21 @@ import 'production_dashboard_screen.dart';
 Widget screenForRole(String role, String fullName, {String? membershipType}) {
   if (role == 'admin') return AdminDashboardScreen(fullName: fullName);
   if (role == 'logistics') return LogisticsDashboardScreen(fullName: fullName);
-  if (role == 'production') return ProductionDashboardScreen(fullName: fullName);
-  return HomeScreen(role: role, fullName: fullName, membershipType: membershipType);
+  if (role == 'production') {
+    return ProductionDashboardScreen(fullName: fullName);
+  }
+  return HomeScreen(
+    role: role,
+    fullName: fullName,
+    membershipType: membershipType,
+  );
 }
 
 String membershipTypeLabel(String? value) => switch (value) {
-      'ASSOCIATE' => 'Associate member',
-      'FULLY_PLEDGED' => 'Fully pledged member',
-      _ => 'Membership not set',
-    };
+  'ASSOCIATE' => 'Associate member',
+  'FULLY_PLEDGED' => 'Fully pledged member',
+  _ => 'Membership not set',
+};
 
 Future<void> logout(BuildContext context) async {
   await TokenStorage.clear();
@@ -59,13 +66,23 @@ class HomeScreen extends StatelessWidget {
         ],
       ),
       bottomNavigationBar: const AppFooter(current: AppFooterTab.dashboard),
-      body: Center(
-        child: Padding(
+      body: SafeArea(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Welcome, $fullName', style: Theme.of(context).textTheme.headlineSmall),
+              if (role == 'member' && membershipType == 'ASSOCIATE') ...[
+                const SizedBox(
+                  width: double.infinity,
+                  child: MemberSeminarNotice(),
+                ),
+                const SizedBox(height: 16),
+              ],
+              Text(
+                'Welcome, $fullName',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
               const SizedBox(height: 8),
               Chip(label: Text('Role: $role')),
               if (role == 'member') ...[

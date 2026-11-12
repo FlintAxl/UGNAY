@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api_client.dart';
 import '../widgets/app_footer.dart';
 import 'admin_pmes_screen.dart';
+import 'admin_seminar_screen.dart';
 import 'applicant_detail_screen.dart';
 import 'home_screen.dart' show logout;
 
@@ -14,14 +15,17 @@ class AdminDashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         appBar: AppBar(
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text('Applicants'),
-              Text('Signed in as $fullName', style: Theme.of(context).textTheme.bodySmall),
+              Text(
+                'Signed in as $fullName',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
             ],
           ),
           actions: [
@@ -37,6 +41,7 @@ class AdminDashboardScreen extends StatelessWidget {
               Tab(text: 'Active'),
               Tab(text: 'Rejected'),
               Tab(text: 'PMES'),
+              Tab(text: 'Seminar'),
             ],
           ),
         ),
@@ -47,6 +52,7 @@ class AdminDashboardScreen extends StatelessWidget {
             _ApplicantList(status: 'ACTIVE'),
             _ApplicantList(status: 'REJECTED'),
             AdminPmesScreen(),
+            AdminSeminarScreen(),
           ],
         ),
       ),
@@ -122,7 +128,11 @@ class _ApplicantListState extends State<_ApplicantList> {
               ? ListView(
                   children: [
                     const SizedBox(height: 160),
-                    Center(child: Text('No ${widget.status.toLowerCase()} applicants')),
+                    Center(
+                      child: Text(
+                        'No ${widget.status.toLowerCase()} applicants',
+                      ),
+                    ),
                   ],
                 )
               : ListView.separated(
@@ -133,14 +143,18 @@ class _ApplicantListState extends State<_ApplicantList> {
                     final membership = a.membershipType == 'FULLY_PLEDGED'
                         ? ' · Fully pledged'
                         : a.membershipType == 'ASSOCIATE'
-                            ? ' · Associate'
-                            : '';
+                        ? ' · Associate'
+                        : '';
                     final subtitle = widget.status == 'ACTIVE'
                         ? '${a.role}$membership · ${a.email}'
                         : '${a.email} · applied ${_date(a.createdAt)}';
                     return ListTile(
                       leading: CircleAvatar(
-                        child: Text(a.fullName.isNotEmpty ? a.fullName[0].toUpperCase() : '?'),
+                        child: Text(
+                          a.fullName.isNotEmpty
+                              ? a.fullName[0].toUpperCase()
+                              : '?',
+                        ),
                       ),
                       title: Text(a.fullName),
                       subtitle: Text(subtitle),

@@ -29,3 +29,32 @@ def schedule_problem(schedule_date: date, today: date | None = None) -> str | No
     if schedule_date.weekday() != SATURDAY:
         return "PMES is held on Saturdays only."
     return None
+
+
+def date_label(value: date) -> str:
+    return value.strftime("%A, %B %d, %Y")
+
+
+def seminar_phase(seminar_date: date, status: str, today: date | None = None) -> str:
+    """Display phase for a stored seminar: UPCOMING, PAST, or CANCELLED."""
+    if status == "CANCELLED":
+        return "CANCELLED"
+    today = today or today_ph()
+    return "UPCOMING" if seminar_date >= today else "PAST"
+
+
+def response_locked(seminar_date: date, today: date | None = None) -> bool:
+    """Responses stay editable through the seminar date, then lock."""
+    return seminar_date < (today or today_ph())
+
+
+def attendance_totals(responses: list[str | None]) -> dict:
+    attending = sum(1 for r in responses if r == "ATTEND")
+    not_attending = sum(1 for r in responses if r == "DECLINE")
+    total = len(responses)
+    return {
+        "attending": attending,
+        "not_attending": not_attending,
+        "no_response": total - attending - not_attending,
+        "total": total,
+    }

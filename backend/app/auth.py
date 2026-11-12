@@ -10,7 +10,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from .config import settings
 from .database import users
 from .helpers import api_error, now
-from .models import Status
+from .models import MembershipType, Status
 
 _hasher = PasswordHasher()
 _bearer = HTTPBearer()
@@ -84,5 +84,14 @@ def require_role(*roles: str):
     async def checker(user: dict = Depends(get_current_user)) -> dict:
         if user["role"] not in roles:
             raise api_error(403, "FORBIDDEN", "You do not have access to this resource.")
+        return user
+    return checker
+
+
+def require_associate_member():
+    async def checker(user: dict = Depends(require_role("member"))) -> dict:
+        if user.get("membership_type") != MembershipType.associate.value:
+            raise api_error(403, "ASSOCIATE_ONLY",
+                            "This feature is for associate members.")
         return user
     return checker

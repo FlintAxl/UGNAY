@@ -9,6 +9,7 @@ from .routers import auth as auth_router
 from .routers import logistics as logistics_router
 from .routers import pmes as pmes_router
 from .routers import production as production_router
+from .routers import seminars as seminars_router
 
 
 @asynccontextmanager
@@ -28,6 +29,8 @@ app.include_router(admin_router.router, prefix="/api/v1")
 app.include_router(logistics_router.router, prefix="/api/v1")
 app.include_router(production_router.router, prefix="/api/v1")
 app.include_router(pmes_router.router, prefix="/api/v1")
+app.include_router(seminars_router.admin_router, prefix="/api/v1")
+app.include_router(seminars_router.member_router, prefix="/api/v1")
 
 
 @app.get("/health")
