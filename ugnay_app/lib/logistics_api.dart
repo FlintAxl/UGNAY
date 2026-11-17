@@ -499,3 +499,17 @@ Future<void> cancelRental(String rentalId) async {
     throw parseError(e);
   }
 }
+
+Future<Uint8List?> fetchRentalSignatureBytes(String url) async {
+  if (url.isEmpty) return null;
+  try {
+    final res = await dio.get<List<int>>(
+      url,
+      options: Options(responseType: ResponseType.bytes),
+    );
+    final bytes = res.data;
+    return bytes == null ? null : Uint8List.fromList(bytes);
+  } catch (e) {
+    throw parseError(e);
+  }
+}

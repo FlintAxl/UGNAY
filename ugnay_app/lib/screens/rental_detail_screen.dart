@@ -1,7 +1,11 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:printing/printing.dart';
 
 import '../api_client.dart';
 import '../logistics_api.dart';
+import '../rental_pdf.dart';
 import 'return_inspection_screen.dart';
 import 'signature_screen.dart';
 
@@ -284,23 +288,90 @@ Future<void> _releaseRental(RentalDetail r, {bool overrideWeekend = false}) asyn
     );
   }
 
+  Future<Uint8List?> _buildReceipt(RentalDetail r) async {
+    Uint8List? signatureImage;
+    final url = r.signature?.url ?? '';
+    if (url.isNotEmpty) {
+      signatureImage = await fetchRentalSignatureBytes(url);
+      if (signatureImage == null) {
+        await _message(
+          'Signature unavailable',
+          'Could not load the borrower signature. Check your connection and try again.',
+        );
+        return null;
+      }
+    }
+    return buildRentalReceiptPdf(r, signatureImage: signatureImage);
+  }
+
+  Future<void> _printReceipt(RentalDetail r) async {
+    setState(() => _busy = true);
+    try {
+      final bytes = await _buildReceipt(r);
+      if (bytes == null) return;
+      await Printing.layoutPdf(
+        onLayout: (format) async => bytes,
+        name: 'Receipt-${r.rentalNo}.pdf',
+      );
+    } catch (e) {
+      if (mounted) await _message('Could not print receipt', '$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _saveReceipt(RentalDetail r) async {
+    setState(() => _busy = true);
+    try {
+      final bytes = await _buildReceipt(r);
+      if (bytes == null) return;
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: 'Receipt-${r.rentalNo}.pdf',
+      );
+    } catch (e) {
+      if (mounted) await _message('Could not save receipt', '$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Rental Details'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
-            onPressed: _busy ? null : _reload,
+    return FutureBuilder<RentalDetail>(
+      future: _future,
+      builder: (context, snapshot) {
+        final r = snapshot.data;
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Rental Details'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.print_outlined),
+                tooltip: 'Print receipt',
+                onPressed: _busy || r == null ? null : () => _printReceipt(r),
+              ),
+              IconButton(
+                icon: const Icon(Icons.download_outlined),
+                tooltip: 'Save receipt PDF',
+                onPressed: _busy || r == null ? null : () => _saveReceipt(r),
+              ),
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Refresh',
+                onPressed: _busy ? null : _reload,
+              ),
+            ],
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: FutureBuilder<RentalDetail>(
-          future: _future,
-          builder: (context, snapshot) {
+          body: SafeArea(
+            child: _buildContent(snapshot),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildContent(AsyncSnapshot<RentalDetail> snapshot) {
             if (snapshot.connectionState != ConnectionState.done) {
               return const Center(child: CircularProgressIndicator());
             }
@@ -721,10 +792,6 @@ Future<void> _releaseRental(RentalDetail r, {bool overrideWeekend = false}) asyn
                 ],
               ),
             );
-          },
-        ),
-      ),
-    );
   }
 }
 
