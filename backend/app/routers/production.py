@@ -5,13 +5,14 @@ from typing import Literal, Optional
 
 from bson import ObjectId
 from bson.errors import InvalidId
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 from pydantic import BaseModel, Field
 from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
 from ..auth import require_role
 from ..database import bidding_rounds, counters, suppliers
+from ..facebook import post_round as post_round_to_facebook
 from ..ginger_math import entry_total, weight_problem
 from ..helpers import api_error, log_audit, now, read_image, signed_url, upload_image
 from ..pricing import PH_TZ, d128, dec, money
@@ -43,12 +44,6 @@ class SupplierUpdate(BaseModel):
     address: Optional[str] = Field(default=None, max_length=200)
     notes: Optional[str] = Field(default=None, max_length=300)
     is_active: Optional[bool] = None
-
-
-class RoundCreate(BaseModel):
-    title: Optional[str] = Field(default=None, max_length=120)
-    notes: Optional[str] = Field(default=None, max_length=500)
-    bidding_date: Optional[date] = None      # defaults to today (Philippine time)
 
 
 class BidCreate(BaseModel):
@@ -176,6 +171,8 @@ def round_summary(r: dict) -> dict:
         "entry_count": sum(1 for b in r["bids"] if b["status"] != "WITHDRAWN"),
         "accepted_count": t["accepted_count"], "accepted_total_price": t["accepted_total_price"],
         "created_at": r["created_at"], "awarded_at": r.get("awarded_at"),
+        "image_url": signed_url(r.get("image_public_id")),
+        "facebook_post": r.get("facebook_post"),
     }
 
 
@@ -252,18 +249,61 @@ async def update_supplier(supplier_id: str, body: SupplierUpdate,
 # =====================================================================
 
 @router.post("/rounds", status_code=201)
-async def create_round(body: RoundCreate, user: dict = Depends(production_only)):
+async def create_round(
+    title: Optional[str] = Form(default=None, max_length=120),
+    notes: Optional[str] = Form(default=None, max_length=500),
+    bidding_date: Optional[date] = Form(default=None),
+    image: Optional[UploadFile] = File(default=None),
+    user: dict = Depends(production_only),
+):
     t = now()
+    image_public_id = None
+    if image is not None:
+        image_public_id = await upload_image(await read_image(image), "rounds")
+
     doc = {
-        "round_no": await next_round_no(), "title": clean(body.title), "notes": clean(body.notes),
-        "bidding_date": (body.bidding_date or datetime.now(PH_TZ).date()).isoformat(),
+        "round_no": await next_round_no(), "title": clean(title), "notes": clean(notes),
+        "bidding_date": (bidding_date or datetime.now(PH_TZ).date()).isoformat(),
+        "image_public_id": image_public_id,
         "status": "OPEN", "bids": [], "version": 1,
         "created_by": user["_id"], "created_by_name": user["full_name"],
         "created_at": t, "updated_at": t,
     }
     await bidding_rounds.insert_one(doc)
-    await log_audit(user["_id"], "ROUND_CREATED", doc["_id"], {"round_no": doc["round_no"]})
+
+    facebook_post = await post_round_to_facebook(
+        round_no=doc["round_no"], title=doc["title"], notes=doc["notes"],
+        bidding_date=doc["bidding_date"], image_url=signed_url(image_public_id))
+    doc["facebook_post"] = facebook_post
+    await bidding_rounds.update_one(
+        {"_id": doc["_id"]}, {"$set": {"facebook_post": facebook_post}})
+
+    await log_audit(user["_id"], "ROUND_CREATED", doc["_id"],
+                    {"round_no": doc["round_no"], "facebook": facebook_post["status"]})
     return round_detail(doc)
+
+
+@router.post("/rounds/{round_id}/facebook")
+async def retry_facebook_post(round_id: str, user: dict = Depends(production_only)):
+    r = await get_round_or_404(round_id)
+    require_open(r)
+    existing = r.get("facebook_post") or {}
+    if existing.get("status") == "POSTED":
+        raise api_error(409, "ALREADY_POSTED", "This round was already posted to Facebook.")
+
+    facebook_post = await post_round_to_facebook(
+        round_no=r["round_no"], title=r.get("title"), notes=r.get("notes"),
+        bidding_date=r.get("bidding_date"),
+        image_url=signed_url(r.get("image_public_id")))
+    await bidding_rounds.update_one(
+        {"_id": r["_id"]}, {"$set": {"facebook_post": facebook_post}})
+    updated = await bidding_rounds.find_one({"_id": r["_id"]})
+
+    action = "ROUND_POSTED_FACEBOOK" if facebook_post["status"] == "POSTED" \
+        else "ROUND_FACEBOOK_FAILED"
+    await log_audit(user["_id"], action, r["_id"],
+                    {"round_no": r["round_no"], "status": facebook_post["status"]})
+    return round_detail(updated)
 
 
 @router.get("/rounds")

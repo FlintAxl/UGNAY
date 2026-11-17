@@ -41,6 +41,12 @@ Run from the service directory (CWD matters: backend loads `.env` from CWD):
 - `membership_type` is separate from `role`: `ASSOCIATE` or `FULLY_PLEDGED`, set when an admin
   approves the account and changeable later via `PATCH /admin/users/{id}/membership-type`.
 - Images are uploaded to Cloudinary as `type="authenticated"` and exposed only as signed URLs.
+- Facebook: creating a bidding round (`POST /production/rounds`, multipart `title`/`notes`/
+  `bidding_date` plus optional cover `image`) uploads the image to Cloudinary (`rounds`) and
+  best-effort posts to the Page via Graph API (`app/facebook.py`). Env keys:
+  `FACEBOOK_PAGE_ID`, `FACEBOOK_PAGE_ACCESS_TOKEN`, `FACEBOOK_GRAPH_VERSION` (default `v26.0`),
+  `FACEBOOK_POST_TIMEOUT_SECONDS`. Failures never block round creation; the result is stored on
+  `facebook_post` and `POST /production/rounds/{id}/facebook` retries for `OPEN` rounds.
 - Backend calls the face service (`FACE_SERVICE_URL`, default `http://localhost:8001`) for
   registration and login, so that service must be running. Default match threshold is `0.4`.
 - PMES: `/auth/pmes-login` (password only, for `PENDING`/`ACTIVE`) returns a limited `pmes` JWT
@@ -83,3 +89,8 @@ Run from the service directory (CWD matters: backend loads `.env` from CWD):
   "Apply for PMES" link on the login screen (or right after registration); pending users do
   not need face login or admin approval to apply. Signature pad drawing/export is shared in
   `lib/signature_pad.dart`; PMES capture uses `lib/screens/pmes_signature_screen.dart`.
+- Borrower rental receipts are generated on-device in `lib/rental_pdf.dart` (A5, PRIC MPC header,
+  items/financials/payments/borrower signature). Print/Save PDF actions live in the rental detail
+  AppBar and use `Printing.layoutPdf` / `Printing.sharePdf`.
+- New bidding rounds can attach an optional cover photo in the New Round dialog; the resulting
+  `image_url`/`facebook_post` are shown on round cards/detail, with a retry button when posting failed.

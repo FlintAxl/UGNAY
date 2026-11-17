@@ -117,6 +117,34 @@ class BidEntry {
       );
 }
 
+/// Result of the automatic Facebook Page post for a bidding round.
+class FacebookPostInfo {
+  final String status; // POSTED | FAILED | SKIPPED
+  final String? postId;
+  final String? error;
+  final String? postedAt;
+  final String? attemptedAt;
+
+  const FacebookPostInfo({
+    required this.status,
+    this.postId,
+    this.error,
+    this.postedAt,
+    this.attemptedAt,
+  });
+
+  factory FacebookPostInfo.fromJson(Map<String, dynamic> j) => FacebookPostInfo(
+        status: (j['status'] ?? '').toString(),
+        postId: j['post_id']?.toString(),
+        error: j['error'] as String?,
+        postedAt: j['posted_at']?.toString(),
+        attemptedAt: j['attempted_at']?.toString(),
+      );
+
+  String? get postUrl =>
+      (postId == null || postId!.isEmpty) ? null : 'https://www.facebook.com/$postId';
+}
+
 /// Used for both the list (bids empty) and the detail (bids filled).
 class BiddingRound {
   final String id;
@@ -136,6 +164,8 @@ class BiddingRound {
   final String acceptedWeighInKg;
   final String acceptedGoodKg;
   final String acceptedBadKg;
+  final String? imageUrl;
+  final FacebookPostInfo? facebookPost;
   final List<BidEntry> bids;
 
   const BiddingRound({
@@ -156,6 +186,8 @@ class BiddingRound {
     required this.acceptedWeighInKg,
     required this.acceptedGoodKg,
     required this.acceptedBadKg,
+    this.imageUrl,
+    this.facebookPost,
     required this.bids,
   });
 
@@ -177,6 +209,11 @@ class BiddingRound {
         acceptedWeighInKg: (j['accepted_weigh_in_kg'] ?? '0.00').toString(),
         acceptedGoodKg: (j['accepted_good_kg'] ?? '0.00').toString(),
         acceptedBadKg: (j['accepted_bad_kg'] ?? '0.00').toString(),
+        imageUrl: j['image_url'] as String?,
+        facebookPost: j['facebook_post'] != null
+            ? FacebookPostInfo.fromJson(
+                Map<String, dynamic>.from(j['facebook_post'] as Map))
+            : null,
         bids: ((j['bids'] as List?) ?? [])
             .map((e) => BidEntry.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList(),
@@ -277,9 +314,27 @@ Future<BiddingRound> getRound(String id) async {
   }
 }
 
-Future<BiddingRound> createRound({String? title, String? notes}) async {
+Future<BiddingRound> createRound({
+  String? title,
+  String? notes,
+  Uint8List? image,
+}) async {
   try {
-    return _round(await dio.post('/production/rounds', data: {'title': title, 'notes': notes}));
+    final form = FormData.fromMap({
+      if (title != null && title.trim().isNotEmpty) 'title': title.trim(),
+      if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+      if (image != null)
+        'image': MultipartFile.fromBytes(image, filename: 'round_cover.jpg'),
+    });
+    return _round(await dio.post('/production/rounds', data: form));
+  } catch (e) {
+    throw parseError(e);
+  }
+}
+
+Future<BiddingRound> retryFacebookPost(String id) async {
+  try {
+    return _round(await dio.post('/production/rounds/$id/facebook'));
   } catch (e) {
     throw parseError(e);
   }

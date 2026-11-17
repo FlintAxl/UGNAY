@@ -46,6 +46,75 @@ class _BiddingRoundDetailScreenState extends State<BiddingRoundDetailScreen> {
 
   // ------------------------------------------------------------ actions
 
+  Future<void> _retryFacebook(BiddingRound r) async {
+    await _run(() async {
+      final updated = await retryFacebookPost(r.id);
+      final post = updated.facebookPost;
+      final message = switch (post?.status) {
+        'POSTED' => 'Round posted to Facebook.',
+        'FAILED' => 'Facebook post failed: ${post?.error ?? 'Unknown error'}',
+        _ => 'Facebook posting is not configured.',
+      };
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      }
+    }, errorTitle: 'Could not post to Facebook');
+  }
+
+  Widget _facebookStatus(BiddingRound r) {
+    final post = r.facebookPost;
+    if (post == null && r.status != 'OPEN') return const SizedBox.shrink();
+    final canRetry = r.status == 'OPEN' && (post == null || post.status != 'POSTED');
+
+    final Widget message;
+    final Color color;
+    if (post == null) {
+      color = Colors.blue.shade800;
+      message = const Text('This round has not been posted to Facebook yet.');
+    } else if (post.status == 'POSTED') {
+      color = Colors.green.shade800;
+      message = Text(
+        'Posted to Facebook${post.postId != null ? ' • ${post.postId}' : ''}',
+        style: const TextStyle(fontWeight: FontWeight.w500),
+      );
+    } else if (post.status == 'FAILED') {
+      color = Theme.of(context).colorScheme.error;
+      message = Text('Facebook post failed: ${post.error ?? 'Unknown error'}',
+          style: TextStyle(color: color));
+    } else {
+      color = Colors.grey.shade700;
+      message = const Text('Facebook posting is not configured.');
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            post?.status == 'POSTED'
+                ? Icons.check_circle_outline
+                : (post?.status == 'FAILED' ? Icons.error_outline : Icons.facebook),
+            size: 18,
+            color: color,
+          ),
+          const SizedBox(width: 6),
+          Expanded(child: DefaultTextStyle.merge(style: TextStyle(fontSize: 12, color: color), child: message)),
+          if (canRetry)
+            TextButton(
+              onPressed: _busy ? null : () => _retryFacebook(r),
+              child: Text(post == null ? 'Post' : 'Retry'),
+            ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _addEntry(BiddingRound r) async {
     final saved = await Navigator.push<bool>(
       context,
@@ -483,6 +552,20 @@ class _BiddingRoundDetailScreenState extends State<BiddingRoundDetailScreen> {
                                   const SizedBox(height: 6),
                                   Text(r.notes!, style: const TextStyle(fontSize: 13)),
                                 ],
+                                if (r.imageUrl != null) ...[
+                                  const SizedBox(height: 10),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.network(
+                                      r.imageUrl!,
+                                      width: double.infinity,
+                                      height: 160,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                                    ),
+                                  ),
+                                ],
+                                _facebookStatus(r),
                               ],
                             ),
                           ),

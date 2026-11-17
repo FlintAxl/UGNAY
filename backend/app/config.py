@@ -23,5 +23,10 @@ class Settings(BaseSettings):
     FACE_THRESHOLD: float = 0.4
     AI_SERVICE_URL: str = "http://localhost:8002"
 
+    FACEBOOK_PAGE_ID: str = ""
+    FACEBOOK_PAGE_ACCESS_TOKEN: str = ""
+    FACEBOOK_GRAPH_VERSION: str = "v26.0"
+    FACEBOOK_POST_TIMEOUT_SECONDS: float = 10.0
+
 
 settings = Settings()

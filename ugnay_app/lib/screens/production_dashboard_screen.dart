@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../api_client.dart';
@@ -128,6 +130,7 @@ class _RoundsTabState extends State<_RoundsTab> {
   String _status = 'OPEN';
   final _search = TextEditingController();
   late Future<List<BiddingRound>> _future;
+  bool _creating = false;
 
   static const _statuses = [
     {'value': 'OPEN', 'label': 'Open'},
@@ -164,17 +167,32 @@ class _RoundsTabState extends State<_RoundsTab> {
   }
 
   Future<void> _newRound() async {
-    final data = await showDialog<Map<String, String>>(
+    final data = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (_) => const _NewRoundDialog(),
     );
     if (data == null) return;
+    setState(() => _creating = true);
     try {
-      final round = await createRound(title: data['title'], notes: data['notes']);
+      final round = await createRound(
+        title: data['title'] as String?,
+        notes: data['notes'] as String?,
+        image: data['image'] as Uint8List?,
+      );
       if (!mounted) return;
+      final status = round.facebookPost?.status;
+      final message = switch (status) {
+        'POSTED' => 'Round opened and posted to Facebook.',
+        'FAILED' => 'Round opened, but the Facebook post failed. You can retry from the round.',
+        'SKIPPED' => 'Round opened. Facebook posting is not configured.',
+        _ => 'Round opened.',
+      };
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
       await _open(round.id);
     } on ApiException catch (e) {
       if (mounted) await showMessageDialog(context, 'Could not create round', e.message);
+    } finally {
+      if (mounted) setState(() => _creating = false);
     }
   }
 
@@ -210,9 +228,16 @@ class _RoundsTabState extends State<_RoundsTab> {
                 ),
               ),
               FilledButton.tonalIcon(
-                onPressed: _newRound,
-                icon: const Icon(Icons.add, size: 16),
-                label: const Text('New round', style: TextStyle(fontSize: 12)),
+                onPressed: _creating ? null : _newRound,
+                icon: _creating
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.add, size: 16),
+                label: Text(_creating ? 'Opening...' : 'New round',
+                    style: const TextStyle(fontSize: 12)),
               ),
             ],
           ),
@@ -280,36 +305,66 @@ class _RoundsTabState extends State<_RoundsTab> {
                         onTap: () => _open(r.id),
                         child: Padding(
                           padding: const EdgeInsets.all(12),
-                          child: Column(
+                          child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(r.roundNo,
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                                  StatusChip(r.status),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text((r.title != null && r.title!.isNotEmpty) ? r.title! : 'Untitled round',
-                                  style: const TextStyle(fontWeight: FontWeight.w500)),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${r.biddingDate} • ${r.entryCount} entr${r.entryCount == 1 ? 'y' : 'ies'}',
-                                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
-                              ),
-                              if (r.status == 'AWARDED') ...[
-                                const Divider(height: 12, thickness: 0.5),
-                                Text(
-                                  'Accepted: ${r.acceptedCount} • ₱${r.acceptedTotalPrice}',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                    color: Colors.green.shade800,
+                              if (r.imageUrl != null) ...[
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.network(
+                                    r.imageUrl!,
+                                    width: 56,
+                                    height: 56,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) => Container(
+                                      width: 56,
+                                      height: 56,
+                                      color: Colors.grey.shade200,
+                                      child: const Icon(Icons.image_not_supported_outlined,
+                                          size: 20, color: Colors.grey),
+                                    ),
                                   ),
                                 ),
+                                const SizedBox(width: 10),
                               ],
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(r.roundNo,
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.bold, fontSize: 15)),
+                                        StatusChip(r.status),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                        (r.title != null && r.title!.isNotEmpty)
+                                            ? r.title!
+                                            : 'Untitled round',
+                                        style: const TextStyle(fontWeight: FontWeight.w500)),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${r.biddingDate} • ${r.entryCount} entr${r.entryCount == 1 ? 'y' : 'ies'}',
+                                      style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                                    ),
+                                    if (r.status == 'AWARDED') ...[
+                                      const Divider(height: 12, thickness: 0.5),
+                                      Text(
+                                        'Accepted: ${r.acceptedCount} • ₱${r.acceptedTotalPrice}',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                          color: Colors.green.shade800,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -336,12 +391,18 @@ class _NewRoundDialog extends StatefulWidget {
 class _NewRoundDialogState extends State<_NewRoundDialog> {
   final _title = TextEditingController();
   final _notes = TextEditingController();
+  Uint8List? _image;
 
   @override
   void dispose() {
     _title.dispose();
     _notes.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickCover() async {
+    final picked = await pickPhotos(context, maxCount: 1);
+    if (picked.isNotEmpty && mounted) setState(() => _image = picked.first);
   }
 
   @override
@@ -366,6 +427,41 @@ class _NewRoundDialogState extends State<_NewRoundDialog> {
               maxLines: 2,
               decoration: const InputDecoration(labelText: 'Notes (optional)', border: OutlineInputBorder()),
             ),
+            const SizedBox(height: 12),
+            if (_image == null)
+              OutlinedButton.icon(
+                onPressed: _pickCover,
+                icon: const Icon(Icons.add_photo_alternate_outlined),
+                label: const Text('Add cover photo (optional)'),
+              )
+            else
+              Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.memory(
+                      _image!,
+                      width: double.infinity,
+                      height: 120,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: IconButton.filledTonal(
+                      tooltip: 'Remove photo',
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () => setState(() => _image = null),
+                    ),
+                  ),
+                ],
+              ),
+            const SizedBox(height: 4),
+            Text(
+              'The photo and round details will be posted to the cooperative Facebook Page.',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+            ),
           ],
         ),
       ),
@@ -375,6 +471,7 @@ class _NewRoundDialogState extends State<_NewRoundDialog> {
           onPressed: () => Navigator.pop(context, {
             'title': _title.text.trim(),
             'notes': _notes.text.trim(),
+            'image': _image,
           }),
           child: const Text('Open round'),
         ),
